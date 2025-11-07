@@ -214,7 +214,8 @@ def test_login():
 ## 💡 Bonus Points
 
 - **Fix the bugs** you discover and document your fixes
-- Write clear, maintainable test code with good naming
+- Write clear, maintainable test code with best practices
+- Measure Test Coverage
 
 ---
 
