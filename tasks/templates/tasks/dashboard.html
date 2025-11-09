@@ -1,110 +1,121 @@
-{% extends 'tasks/base.html' %}
-
-{% block title %}Dashboard - Todo App{% endblock %}
-
-{% block content %}
+{% extends 'tasks/base.html' %} {% block title %}Dashboard - Todo App{% endblock
+%} {% block content %}
 <div class="row">
-    <div class="col-lg-8 mx-auto">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h3 class="mb-0">My Tasks</h3>
+  <div class="col-lg-8 mx-auto">
+    <div class="card shadow">
+      <div class="card-header bg-primary text-white">
+        <h3 class="mb-0">My Tasks</h3>
+      </div>
+      <div class="card-body">
+        <!-- Add Task Form -->
+        <form method="post" class="mb-4">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add" />
+          <div class="input-group">
+            <input
+              type="text"
+              class="form-control"
+              name="title"
+              placeholder="Enter a new task..."
+              required
+            />
+            <button class="btn btn-success" type="submit">➕ Add Task</button>
+          </div>
+        </form>
+
+        <!-- Task List -->
+        {% if tasks %}
+        <div class="list-group">
+          {% for task in tasks %}
+          <div
+            class="list-group-item d-flex justify-content-between align-items-center {% if task.completed %}bg-light{% endif %}"
+          >
+            <div class="flex-grow-1">
+              <span
+                class="{% if task.completed %}text-decoration-line-through text-muted{% endif %}"
+              >
+                {{ task.title }}
+              </span>
+              <br />
+              <small class="text-muted">
+                Created by: {{ task.user.username }} | {{
+                task.created_at|date:"M d, Y H:i" }}
+              </small>
             </div>
-            <div class="card-body">
-                <!-- Add Task Form -->
-                <form method="post" class="mb-4">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="add">
-                    <div class="input-group">
-                        <input type="text" 
-                               class="form-control" 
-                               name="title" 
-                               placeholder="Enter a new task..." 
-                               required>
-                        <button class="btn btn-success" type="submit">
-                            ➕ Add Task
-                        </button>
-                    </div>
-                </form>
-
-                <!-- Task List -->
-                {% if tasks %}
-                <div class="list-group">
-                    {% for task in tasks %}
-                    <div class="list-group-item d-flex justify-content-between align-items-center {% if task.completed %}bg-light{% endif %}">
-                        <div class="flex-grow-1">
-                            <span class="{% if task.completed %}text-decoration-line-through text-muted{% endif %}">
-                                {{ task.title }}
-                            </span>
-                            <br>
-                            <small class="text-muted">
-                                Created by: {{ task.user.username }} | 
-                                {{ task.created_at|date:"M d, Y H:i" }}
-                            </small>
-                        </div>
-                        <div class="btn-group" role="group">
-                            {% if not task.completed %}
-                            <form method="post" class="d-inline">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="complete">
-                                <input type="hidden" name="task_id" value="{{ task.id }}">
-                                <button type="submit" class="btn btn-sm btn-outline-success" title="Mark as completed">
-                                    ✓
-                                </button>
-                            </form>
-                            {% endif %}
-                            <form method="post" class="d-inline">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="task_id" value="{{ task.id }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete task">
-                                    🗑️
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-
-                <!-- Pagination -->
-                {% if page_obj.paginator.num_pages > 1 %}
-                <nav class="mt-4">
-                    <ul class="pagination justify-content-center">
-                        {% if page_obj.has_previous %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
-                        </li>
-                        {% else %}
-                        <li class="page-item disabled">
-                            <span class="page-link">Previous</span>
-                        </li>
-                        {% endif %}
-
-                        {% for i in page_obj.paginator.page_range %}
-                        <li class="page-item {% if i == page_obj.number %}active{% endif %}">
-                            <a class="page-link" href="?page={{ i }}">{{ i }}</a>
-                        </li>
-                        {% endfor %}
-
-                        {% if page_obj.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
-                        </li>
-                        {% else %}
-                        <li class="page-item disabled">
-                            <span class="page-link">Next</span>
-                        </li>
-                        {% endif %}
-                    </ul>
-                </nav>
-                {% endif %}
-
-                {% else %}
-                <div class="alert alert-info text-center">
-                    <p class="mb-0">No tasks yet. Add your first task above!</p>
-                </div>
-                {% endif %}
+            <div class="btn-group" role="group">
+              {% if not task.completed %}
+              <form method="post" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="complete" />
+                <input type="hidden" name="task_id" value="{{ task.id }}" />
+                <button
+                  type="submit"
+                  class="btn btn-sm btn-outline-success"
+                  title="Mark as completed"
+                >
+                  ✓
+                </button>
+              </form>
+              {% endif %}
+              <form method="post" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete" />
+                <input type="hidden" name="task_id" value="{{ task.id }}" />
+                <button
+                  type="submit"
+                  class="btn btn-sm btn-outline-danger"
+                  title="Delete task"
+                >
+                  🗑️
+                </button>
+              </form>
             </div>
+          </div>
+          {% endfor %}
         </div>
+
+        <!-- Pagination -->
+        {% if page_obj.paginator.num_pages > 1 %}
+        <nav class="mt-4">
+          <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a
+                class="page-link"
+                href="?page={{ page_obj.previous_page_number }}"
+                >Previous</a
+              >
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+              <span class="page-link">Previous</span>
+            </li>
+            {% endif %} {% for i in page_obj.paginator.page_range %}
+            <li
+              class="page-item {% if i == page_obj.number %}active{% endif %}"
+            >
+              <a class="page-link" href="?page={{ i }}">{{ i }}</a>
+            </li>
+            {% endfor %} {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}"
+                >Next</a
+              >
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+              <span class="page-link">Next</span>
+            </li>
+            {% endif %}
+          </ul>
+        </nav>
+        {% endif %} {% else %}
+        <div class="alert alert-info text-center">
+          <p class="mb-0">No tasks yet. Add your first task above!</p>
+        </div>
+        {% endif %}
+      </div>
     </div>
+  </div>
 </div>
 {% endblock %}

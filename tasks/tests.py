@@ -4,15 +4,19 @@ from playwright.sync_api import Page, expect
 
 # ---------------- Fixtures ---------------- #
 
+
 @pytest.fixture
 def create_users(db):
     """
     Create dummy test users in the test database.
     This keeps them isolated from your real dev DB.
     """
-    mingchi = User.objects.create_user(username="mingchi_test", password="securepassword123")
-    user_b = User.objects.create_user(username="user_b_test", password="pass123")
+    mingchi = User.objects.create_user(
+        username="mingchi_test", password="securepassword123")
+    user_b = User.objects.create_user(
+        username="user_b_test", password="pass123")
     return {"mingchi": mingchi, "user_b": user_b}
+
 
 @pytest.fixture
 def login(page: Page):
@@ -25,10 +29,12 @@ def login(page: Page):
         page.fill('input[name="password"]', password)
         page.click('button[type="submit"]')
         # Wait for redirect to dashboard
-        expect(page).to_have_url("http://127.0.0.1:8000/dashboard/", timeout=10000)
+        expect(page).to_have_url(
+            "http://127.0.0.1:8000/dashboard/", timeout=10000)
     return do_login
 
 # ---------------- Tests ---------------- #
+
 
 def test_login_success(page: Page, create_users):
     """
@@ -67,7 +73,8 @@ def test_task_management(page: Page, create_users, login):
     # Complete the task (matches your template buttons)
     page.locator("form input[value='complete'] + button").click()
     completed_task = page.locator("text=Task 1")
-    assert "text-decoration-line-through" in (completed_task.get_attribute("class") or "")
+    assert "text-decoration-line-through" in (
+        completed_task.get_attribute("class") or "")
 
     # Delete the task
     page.locator("form input[value='delete'] + button").click()
