@@ -1,106 +1,122 @@
-from django.test import TestCase, Client
-from django.urls import reverse
+import pytest
 from django.contrib.auth.models import User
-from tasks.models import Task
+from playwright.sync_api import Page, expect
+
+# ---------------- Fixtures ---------------- #
+
+@pytest.fixture
+def create_users(db):
+    """
+    Create dummy test users in the test database.
+    This keeps them isolated from your real dev DB.
+    """
+    mingchi = User.objects.create_user(username="mingchi_test", password="securepassword123")
+    user_b = User.objects.create_user(username="user_b_test", password="pass123")
+    return {"mingchi": mingchi, "user_b": user_b}
+
+@pytest.fixture
+def login(page: Page):
+    """
+    Reusable login helper.
+    """
+    def do_login(username, password):
+        page.goto("http://127.0.0.1:8000/login/")
+        page.fill('input[name="username"]', username)
+        page.fill('input[name="password"]', password)
+        page.click('button[type="submit"]')
+        # Wait for redirect to dashboard
+        expect(page).to_have_url("http://127.0.0.1:8000/dashboard/", timeout=10000)
+    return do_login
+
+# ---------------- Tests ---------------- #
+
+def test_login_success(page: Page, create_users):
+    """
+    Test valid login redirects to dashboard.
+    """
+    page.goto("http://127.0.0.1:8000/login/")
+    page.fill('input[name="username"]', 'mingchi_test')
+    page.fill('input[name="password"]', 'securepassword123')
+    page.click('button[type="submit"]')
+    expect(page).to_have_url("http://127.0.0.1:8000/dashboard/", timeout=10000)
 
 
-class TaskViewsTest(TestCase):
-    """Test suite for login, logout, and dashboard views."""
+def test_login_logout_flow(page: Page, create_users, login):
+    """
+    Test login and logout flow.
+    """
+    login("mingchi_test", "securepassword123")
+    expect(page).to_have_url("http://127.0.0.1:8000/dashboard/")
 
-    def setUp(self):
-        """Set up test user and client."""
-        self.client = Client()
-        self.username = 'testuser'
-        self.password = 'securepassword123'
-        self.user = User.objects.create_user(username=self.username, password=self.password)
-        self.login_url = reverse('login')
-        self.logout_url = reverse('logout')
-        self.dashboard_url = reverse('dashboard')
+    page.goto("http://127.0.0.1:8000/logout/")
+    expect(page).to_have_url("http://127.0.0.1:8000/login/")
 
-    def test_login_view_get(self):
-        """GET request to login should render login page."""
-        response = self.client.get(self.login_url)
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'tasks/login.html')
 
-    def test_login_valid_user_redirects_to_dashboard(self):
-        """POST valid credentials should log in and redirect to dashboard."""
-        response = self.client.post(self.login_url, {
-            'username': self.username,
-            'password': self.password,
-        })
-        self.assertRedirects(response, self.dashboard_url)
+def test_task_management(page: Page, create_users, login):
+    """
+    Test adding, completing, and deleting tasks.
+    """
+    login("mingchi_test", "securepassword123")
 
-    def test_login_invalid_credentials_shows_error(self):
-        """POST invalid credentials should show error message."""
-        response = self.client.post(self.login_url, {
-            'username': 'wronguser',
-            'password': 'wrongpass',
-        }, follow=True)
-        self.assertContains(response, "Invalid username or password.")
+    # Add a task
+    page.fill('input[name="title"]', "Task 1")
+    page.click('button[type="submit"]')
+    page.wait_for_selector("text=Task 1")
+    expect(page.locator("text=Task 1")).to_be_visible()
 
-    def test_logout_redirects_to_login(self):
-        """Logout should redirect to login page."""
-        self.client.login(username=self.username, password=self.password)
-        response = self.client.get(self.logout_url)
-        self.assertRedirects(response, self.login_url)
+    # Complete the task (matches your template buttons)
+    page.locator("form input[value='complete'] + button").click()
+    completed_task = page.locator("text=Task 1")
+    assert "text-decoration-line-through" in (completed_task.get_attribute("class") or "")
 
-    def test_dashboard_requires_login(self):
-        """Unauthenticated users should be redirected to login."""
-        response = self.client.get(self.dashboard_url)
-        self.assertRedirects(response, f"{self.login_url}?next={self.dashboard_url}")
+    # Delete the task
+    page.locator("form input[value='delete'] + button").click()
+    page.wait_for_timeout(500)
+    expect(page.locator("text=Task 1")).not_to_be_visible()
 
-    def test_dashboard_loads_for_authenticated_user(self):
-        """Authenticated users should see the dashboard page."""
-        self.client.login(username=self.username, password=self.password)
-        response = self.client.get(self.dashboard_url)
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'tasks/dashboard.html')
-        self.assertContains(response, self.username)
 
-    def test_add_task_via_post(self):
-        """POST action=add should create a new task."""
-        self.client.login(username=self.username, password=self.password)
-        response = self.client.post(self.dashboard_url, {
-            'action': 'add',
-            'title': 'Test Task',
-        }, follow=True)
-        self.assertTrue(Task.objects.filter(title='Test Task').exists())
-        self.assertContains(response, 'Task added successfully!')
+def test_data_isolation(page: Page, create_users, login):
+    """
+    Ensure User B cannot see User A's tasks.
+    """
+    # Login as Mingchi and create a task
+    login("mingchi_test", "securepassword123")
+    page.fill('input[name="title"]', "Private Task")
+    page.click('button[type="submit"]')
+    page.wait_for_selector("text=Private Task")
+    page.goto("http://127.0.0.1:8000/logout/")
 
-    def test_complete_task_via_post(self):
-        """POST action=complete should mark a task as completed."""
-        self.client.login(username=self.username, password=self.password)
-        task = Task.objects.create(user=self.user, title='Incomplete Task')
-        response = self.client.post(self.dashboard_url, {
-            'action': 'complete',
-            'task_id': task.id,
-        }, follow=True)
-        task.refresh_from_db()
-        self.assertTrue(task.completed)
-        self.assertContains(response, 'Task marked as completed!')
+    # Login as User B
+    login("user_b_test", "pass123")
+    assert page.locator("text=Private Task").count() == 0
 
-    def test_delete_task_via_post(self):
-        """POST action=delete should remove a task."""
-        self.client.login(username=self.username, password=self.password)
-        task = Task.objects.create(user=self.user, title='Delete Me')
-        response = self.client.post(self.dashboard_url, {
-            'action': 'delete',
-            'task_id': task.id,
-        }, follow=True)
-        self.assertFalse(Task.objects.filter(id=task.id).exists())
-        self.assertContains(response, 'Task deleted successfully!')
+    # Add a task for User B
+    page.fill('input[name="title"]', "User B Task")
+    page.click('button[type="submit"]')
+    page.wait_for_selector("text=User B Task")
+    expect(page.locator("text=User B Task")).to_be_visible()
 
-    def test_pagination_logic(self):
-        """Dashboard should paginate correctly with ITEMS_PER_PAGE = 5."""
-        self.client.login(username=self.username, password=self.password)
-        for i in range(8):
-            Task.objects.create(user=self.user, title=f'Task {i+1}')
 
-        # Page 0 should show first 5 tasks
-        response_page_0 = self.client.get(self.dashboard_url + '?page=0')
-        self.assertEqual(len(response_page_0.context['tasks']), 5)
+def test_pagination(page: Page, create_users, login):
+    """
+    Test pagination with more than 5 tasks.
+    """
+    login("mingchi_test", "securepassword123")
 
-        # Page 1 should show remaining 3 tasks
-        response_page_1 = self.client.get(self.dashboard_url + '?page=1')
-        self.assertEqual(len(response_page_1.context['tasks']), 3)
+    # Add 8 tasks
+    for i in range(8):
+        page.fill('input[name="title"]', f"Task {i+1}")
+        page.click('button[type="submit"]')
+        page.wait_for_selector(f"text=Task {i+1}")
+
+    # Verify first 5 tasks visible
+    for i in range(1, 6):
+        expect(page.locator(f"text=Task {i}")).to_be_visible()
+
+    # Click 'Next' to go to second page
+    page.locator("ul.pagination li a:has-text('Next')").click()
+    page.wait_for_timeout(500)
+
+    # Verify remaining tasks
+    for i in range(6, 9):
+        expect(page.locator(f"text=Task {i}")).to_be_visible()

@@ -1,0 +1,31 @@
+Problem before
+
+Pagination was handled manually with variables like current_page, has_prev, has_next, total_pages.
+
+This caused skipped tasks and errors when pages > 0.
+
+Template and views were tightly coupled with complex calculations.
+
+Solution:
+
+Use Django’s Paginator and pass page_obj from views.py.
+
+Template now uses page_obj for pagination:
+
+page_obj.has_previous / page_obj.has_next
+
+page_obj.previous_page_number / page_obj.next_page_number
+
+Loop through page_obj.paginator.page_range for page numbers.
+
+No manual page calculations needed.
+
+Reasons for optimisation:
+
+Automatically slices tasks per page correctly.
+
+Supports any number of tasks.
+
+Correctly highlights the active page.
+
+Cleaner, safer, and easier to maintain.
